@@ -30,14 +30,68 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run tests
+        id: run-tests
         run: ./gradlew test --stacktrace
 
-      - name: Test Summary
+      - name: Parse Test Results
         if: always()
         run: |
-          if [ $? -eq 0 ]; then
-            echo "✅ All tests passed successfully!"
+          echo "📊 Parsing test results..."
+          
+          # Buscar archivos XML de resultados de tests
+          TEST_RESULTS=$(find app/build/test-results -name "*.xml" 2>/dev/null || echo "")
+          
+          if [ -n "$TEST_RESULTS" ]; then
+            TOTAL_TESTS=0
+            PASSED_TESTS=0
+            FAILED_TESTS=0
+            SKIPPED_TESTS=0
+            
+            for file in $TEST_RESULTS; do
+              if [ -f "$file" ]; then
+                # Extraer estadísticas del XML
+                TESTS=$(grep -oP 'tests="\K[0-9]+' "$file" 2>/dev/null || echo "0")
+                FAILURES=$(grep -oP 'failures="\K[0-9]+' "$file" 2>/dev/null || echo "0")
+                SKIPPED=$(grep -oP 'skipped="\K[0-9]+' "$file" 2>/dev/null || echo "0")
+                
+                TOTAL_TESTS=$((TOTAL_TESTS + TESTS))
+                FAILED_TESTS=$((FAILED_TESTS + FAILURES))
+                SKIPPED_TESTS=$((SKIPPED_TESTS + SKIPPED))
+              fi
+            done
+            
+            PASSED_TESTS=$((TOTAL_TESTS - FAILED_TESTS - SKIPPED_TESTS))
+            
+            echo "TOTAL_TESTS=$TOTAL_TESTS" >> $GITHUB_ENV
+            echo "PASSED_TESTS=$PASSED_TESTS" >> $GITHUB_ENV
+            echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+            echo "SKIPPED_TESTS=$SKIPPED_TESTS" >> $GITHUB_ENV
           else
-            echo "❌ Some tests failed. Check logs above."
-            exit 1
+            echo "TOTAL_TESTS=0" >> $GITHUB_ENV
+            echo "PASSED_TESTS=0" >> $GITHUB_ENV
+            echo "FAILED_TESTS=0" >> $GITHUB_ENV
+            echo "SKIPPED_TESTS=0" >> $GITHUB_ENV
           fi
+
+      - name: Test Summary
+        if: success()
+        run: |
+          echo "✅ All tests passed successfully!"
+          echo ""
+          echo "📊 Test Results Summary:"
+          echo "  • Total Tests: ${{ env.TOTAL_TESTS }}"
+          echo "  • Passed: ${{ env.PASSED_TESTS }} ✅"
+          echo "  • Failed: ${{ env.FAILED_TESTS }} ❌"
+          echo "  • Skipped: ${{ env.SKIPPED_TESTS }} ⊘"
+      
+      - name: Test Failure Summary
+        if: failure()
+        run: |
+          echo "❌ Tests failed! Check the logs above for details."
+          echo ""
+          echo "📊 Test Results Summary:"
+          echo "  • Total Tests: ${{ env.TOTAL_TESTS }}"
+          echo "  • Passed: ${{ env.PASSED_TESTS }} ✅"
+          echo "  • Failed: ${{ env.FAILED_TESTS }} ❌"
+          echo "  • Skipped: ${{ env.SKIPPED_TESTS }} ⊘"
+          exit 1
