@@ -38,8 +38,8 @@ jobs:
         run: |
           echo "📊 Parsing test results..."
           
-          # Buscar archivos XML de resultados de tests
-          TEST_RESULTS=$(find app/build/test-results -name "*.xml" 2>/dev/null || echo "")
+          # Buscar SOLO archivos XML de testDebugUnitTest (no release)
+          TEST_RESULTS=$(find app/build/test-results/testDebugUnitTest -name "*.xml" 2>/dev/null || echo "")
           
           if [ -n "$TEST_RESULTS" ]; then
             TOTAL_TESTS=0
